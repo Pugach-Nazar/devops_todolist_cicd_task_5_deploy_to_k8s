@@ -59,7 +59,7 @@ jobs:
 
     - name: Deploy helm chart
       run: |
-        helm upgrade --install --atomic --wait --timeout 3600s --debug ${{ inputs.helm-release-name }} ./todoapp-*.tgz \
+        helm upgrade --install --wait --timeout 3600s --debug ${{ inputs.helm-release-name }} ./todoapp-*.tgz \
          -f ${{ inputs.helm-values-path }} \
          --set mysql.secrets.MYSQL_ROOT_PASSWORD="${{ secrets.MYSQL_ROOT_PASSWORD }}" \
          --set mysql.secrets.MYSQL_USER="${{ secrets.MYSQL_USER }}" \
@@ -70,3 +70,29 @@ jobs:
          --set todoapp.secrets.DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
          --set todoapp.secrets.DB_HOST="${{ secrets.DB_HOST }}" \
          --set todoapp.image.version="${{ github.sha }}"
+
+    - name: Diagnose Kubernetes deployment
+      if: always()
+      run: |
+        echo "=== Pods ==="
+        kubectl get pods -A -o wide
+
+        echo "=== Application deployment ==="
+        kubectl describe deployment todoapp-todoapp -n todoapp || true
+
+        echo "=== Application pods ==="
+        kubectl describe pods -n todoapp || true
+
+        echo "=== Application logs ==="
+        kubectl logs deployment/todoapp-todoapp \
+          -n todoapp --all-containers=true --tail=100 || true
+
+        echo "=== MySQL pods ==="
+        kubectl get pods -n mysql -o wide || true
+
+        echo "=== MySQL logs ==="
+        kubectl logs statefulset/mysql \
+          -n mysql --all-containers=true --tail=100 || true
+
+        echo "=== Recent events ==="
+        kubectl get events -A --sort-by=.metadata.creationTimestamp
